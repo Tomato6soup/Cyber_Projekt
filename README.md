@@ -77,37 +77,6 @@ Zasada najmniejszych uprawnień: administrator zarządza kontami, ale nie publik
 
 Plus stałe konto **ADMIN** (Administrator). Hasła jednorazowe wypisuje `npm run seed`.
 
-## Odpowiedzi na pytania kontrolne
-
-**1. Dlaczego mechanizmów kryptograficznych nie należy implementować samodzielnie?**
-
-Kryptografia jest dziedziną, w której kod może działać poprawnie z punktu widzenia użytkownika, a mimo to być całkowicie niebezpieczny. Błędu nie widać w testach funkcjonalnych, ujawnia się dopiero podczas ataku. Gotowe biblioteki (np. argon2, express-session, moduł crypto w Node.js) są rozwijane przez specjalistów, przeszły audyty i są stale poprawiane po wykryciu podatności. Własna implementacja nie ma tej historii testów. Przykładowe błędy, które łatwo popełnić:
-
-- Użycie zwykłego generatora liczb losowych (np. Math.random()) do tworzenia tokenów sesji lub haseł jednorazowych. Jego wyniki są przewidywalne, więc atakujący może odgadnąć kolejne wartości. Należy używać kryptograficznie bezpiecznego generatora (w aplikacji: crypto.randomInt przy losowaniu słów hasła jednorazowego).
-- Porównywanie hashy lub tokenów zwykłym operatorem ==. Porównanie kończy się na pierwszym różnym znaku, więc czas odpowiedzi zdradza, ile znaków się zgadza (atak czasowy). Biblioteki stosują porównanie w stałym czasie.
-- Inne typowe błędy: brak soli lub jedna sól dla wszystkich haseł, użycie szybkiego algorytmu (MD5, SHA) do haseł, brak zmiany identyfikatora sesji po zalogowaniu (session fixation).
-
-**2. Dlaczego SHA-256 nie nadaje się do przechowywania haseł, a Argon2id tak? Jaką rolę pełni sól?**
-
-SHA-256 jest funkcją skrótu zaprojektowaną do szybkiego działania, np. do sprawdzania integralności plików. Ta szybkość jest wadą przy hasłach: po wycieku bazy atakujący może na karcie graficznej sprawdzać miliardy haseł na sekundę i szybko złamać większość z nich atakiem słownikowym lub siłowym.
-
-Argon2id jest algorytmem przeznaczonym do haseł. Jest celowo wolny i wymaga dużej ilości pamięci (memory-hard). Parametry kosztu (czas, pamięć, równoległość) można zwiększać wraz ze wzrostem mocy komputerów. Duże zużycie pamięci sprawia, że ataki na kartach graficznych i układach ASIC są dużo mniej opłacalne. W aplikacji użyto Argon2id z parametrami zalecanymi przez OWASP: 19 MiB pamięci, 2 iteracje, 1 wątek.
-
-Sól to losowa wartość generowana osobno dla każdego hasła i zapisywana razem z hashem. Dzięki niej dwa identyczne hasła mają różne hashe, więc nie widać, którzy użytkownicy mają to samo hasło. Sól uniemożliwia też użycie gotowych tablic tęczowych (rainbow tables) i wymusza łamanie każdego hasła osobno. W aplikacji sól jest częścią zapisu w kolumnie password_hash, np. $argon2id$v=19$m=19456,t=2,p=1$<sól>$<hash>.
-
-**3. Dlaczego NIST odradza wymuszone reguły złożoności i okresową zmianę hasła?**
-
-Badania pokazały, że reguły typu „wielka litera, cyfra i znak specjalny” nie zwiększają realnie bezpieczeństwa. Użytkownicy spełniają je w przewidywalny sposób, np. Haslo1! albo Lato2024!, a atakujący znają te wzorce i uwzględniają je w słownikach. O sile hasła decyduje przede wszystkim jego długość, dlatego NIST SP 800-63B-4 zaleca minimalną długość, zgodę na długie frazy hasłowe i sprawdzanie haseł z listą haseł zakazanych (popularnych lub ujawnionych w wyciekach).
-
-Okresowa wymiana hasła prowadzi do podobnych problemów. Użytkownicy zmieniają hasło minimalnie (Haslo1 na Haslo2), zapisują je na kartkach albo używają tych samych haseł w wielu serwisach. Hasło należy zmieniać tylko wtedy, gdy są dowody lub podejrzenie jego ujawnienia. W aplikacji polityka opiera się na długości (min. 15 znaków), liście haseł zakazanych i zakazie sekwencji klawiaturowych z wariantu 3, a domyślna ważność hasła to 0, czyli bez wygasania.
-
-**4. Dlaczego ukrycie przycisku w interfejsie nie jest mechanizmem autoryzacji?**
-
-Interfejs działa w przeglądarce, którą w pełni kontroluje użytkownik. Ukryty przycisk nadal odpowiada jakiemuś adresowi na serwerze. Użytkownik może go podejrzeć w kodzie strony lub w narzędziach deweloperskich (F12), a potem wysłać żądanie ręcznie, np. przez konsolę przeglądarki, curl albo Postman. Gdyby serwer nie sprawdzał uprawnień, takie żądanie zostałoby wykonane.
-
-Autoryzacja musi więc być sprawdzana po stronie serwera przy każdym żądaniu, na podstawie roli zalogowanego użytkownika zapisanej w sesji. Ukrywanie przycisków to tylko wygoda, bo użytkownik nie widzi opcji, z których nie może skorzystać. W aplikacji Czytelnik nie widzi linku do panelu administratora, ale nawet gdy wywoła ręcznie adres /api/admin/users, serwer sprawdza uprawnienie users.manage i odpowiada kodem 403 Forbidden. Pokazuje to przycisk „Test autoryzacji” na stronie głównej.
-
-
 ##  Struktura projektu
 
 ```
