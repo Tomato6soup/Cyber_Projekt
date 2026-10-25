@@ -24,7 +24,7 @@ async function logout(expired = false) {
   location.href = '/login.html' + (expired ? '?expired=1' : '');
 }
 
-// Automatyczne wylogowanie po bezczynności (serwer i tak sprawdza to niezależnie).
+// Automatyczne wylogowanie po bezczynności.
 function startIdleTimer(minutes, counterEl) {
   const limit = minutes * 60000;
   let last = Date.now();
