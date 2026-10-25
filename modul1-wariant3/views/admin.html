@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel poważny</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">UBB</span>Anna Tkach</div>
+  <nav>
+    <a class="nav-link" href="/app">Aplikacja</a>
+    <a class="nav-link active" href="/admin">Panel administratora</a>
+    <a class="nav-link" href="/change-password.html">Zmień hasło</a>
+    <div class="user-chip"><span class="who" data-who></span><span class="idle" data-idle></span></div>
+    <button class="btn btn-sm" onclick="logout()">Wyloguj</button>
+  </nav>
+</header>
+<main>
+  <h1 class="page-title">Panel administratora</h1>
+  <p class="page-sub">Zarządzanie kontami i ustawieniami bezpieczeństwa.</p>
+
+  <div class="card">
+    <div class="card-head"><h2>Użytkownicy</h2><span class="hint" id="userCount"></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Login</th><th>Imię i nazwisko</th><th>Rola</th><th>Status</th><th>Akcje</th></tr></thead>
+        <tbody id="users"></tbody>
+      </table>
+    </div>
+    <div id="usersMsg" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Dodaj użytkownika</h2>
+    <form id="addForm" class="form-grid">
+      <div class="field"><label for="newLogin">Login</label><input id="newLogin" required></div>
+      <div class="field"><label for="newName">Imię i nazwisko</label><input id="newName"></div>
+      <div class="field"><label for="newRole">Rola</label><select id="newRole"></select></div>
+      <button type="submit">Dodaj użytkownika</button>
+    </form>
+    <div id="addMsg" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>Ustawienia bezpieczeństwa</h2>
+    <form id="settingsForm">
+      <div class="switch-row">
+        <div>
+          <div class="title">Polityka haseł wariantu 3</div>
+          <p class="hint">Zakaz sekwencji klawiaturowych i ciągów rosnących (qwerty, asdf, 1234, abcd).</p>
+        </div>
+        <label class="switch" title="Włącz / wyłącz"><input type="checkbox" id="policy_no_sequences"><span></span></label>
+      </div>
+      <div class="form-grid">
+        <div class="field"><label for="min_length">Min. długość hasła</label><input id="min_length" type="number" min="8" max="64"></div>
+        <div class="field"><label for="password_validity_days">Ważność hasła (dni)</label><input id="password_validity_days" type="number" min="0"></div>
+        <div class="field"><label for="session_timeout_minutes">Bezczynność sesji (min)</label><input id="session_timeout_minutes" type="number" min="1"></div>
+        <div class="field"><label for="password_history_count">Historia haseł</label><input id="password_history_count" type="number" min="1" max="24"></div>
+      </div>
+      <p class="hint">Ważność 0 oznacza hasło bez wygasania (zalecenie NIST). Historia to liczba poprzednich haseł, których nie można użyć ponownie.</p>
+      <div class="form-actions"><button type="submit">Zapisz ustawienia</button></div>
+    </form>
+    <div id="settingsMsg" class="msg"></div>
+  </div>
+</main>
+<script src="/common.js"></script>
+<script>
+  let roles = [];
+  const usersMsg = document.getElementById('usersMsg');
+
+  function showOtp(msgEl, login, otp) {
+    msgEl.replaceChildren(el('div', `Hasło jednorazowe dla ${login} (ważne 24 h, pokazywane tylko raz):`),
+      el('div', otp, { className: 'otp' }));
+    msgEl.className = 'msg ok';
+  }
+
+  async function loadUsers() {
+    const { data } = await api('GET', '/api/admin/users');
+    document.getElementById('userCount').textContent = `Liczba kont: ${data.length}`;
+    const tbody = document.getElementById('users');
+    tbody.replaceChildren();
+    for (const u of data) {
+      const tr = el('tr');
+      const name = el('input', null, { value: u.full_name });
+      const role = el('select');
+      for (const r of roles) role.append(el('option', r, { value: r, selected: r === u.role }));
+      role.disabled = u.login === 'ADMIN';
+
+      const status = el('td', null, { className: 'status' });
+      if (u.is_blocked) status.append(el('span', 'zablokowany', { className: 'badge red' }));
+      else if (u.must_change_password) status.append(el('span', 'hasło jednorazowe', { className: 'badge' }));
+      else status.append(el('span', 'aktywny', { className: 'badge green' }));
+      if (u.totp_enabled) status.append(el('span', 'TOTP', { className: 'badge gray' }));
+
+      const actions = el('div', null, { className: 'actions' });
+      const btn = (label, cls, fn) => { const b = el('button', label, { className: 'btn-sm ' + cls }); b.onclick = fn; actions.append(b); };
+      btn('Zapisz', '', async () => {
+        const r = await api('PUT', `/api/admin/users/${u.id}`, { fullName: name.value, role: role.value });
+        showMsg(usersMsg, r.ok ? `Zapisano ${u.login}` : r.data.error, r.ok ? 'ok' : 'error'); loadUsers();
+      });
+      btn('Reset hasła', 'btn-ghost', async () => {
+        const r = await api('POST', `/api/admin/users/${u.id}/reset-password`);
+        if (r.ok) showOtp(usersMsg, u.login, r.data.oneTimePassword);
+        loadUsers();
+      });
+      if (u.login !== 'ADMIN') {
+        btn(u.is_blocked ? 'Odblokuj' : 'Zablokuj', 'btn-outline', async () => {
+          await api('POST', `/api/admin/users/${u.id}/block`, { blocked: !u.is_blocked }); loadUsers();
+        });
+        btn('Usuń', 'btn-danger', async () => {
+          if (!confirm(`Usunąć użytkownika ${u.login}?`)) return;
+          await api('DELETE', `/api/admin/users/${u.id}`); loadUsers();
+        });
+      }
+      const nameTd = el('td'); nameTd.append(name);
+      const roleTd = el('td'); roleTd.append(role);
+      const actTd = el('td'); actTd.append(actions);
+      tr.append(el('td', u.login, { className: 'login' }), nameTd, roleTd, status, actTd);
+      tbody.append(tr);
+    }
+  }
+
+  async function loadSettings() {
+    const { data } = await api('GET', '/api/admin/settings');
+    for (const [k, v] of Object.entries(data)) {
+      const input = document.getElementById(k);
+      if (!input) continue;
+      if (input.type === 'checkbox') input.checked = !!v; else input.value = v;
+    }
+  }
+
+  document.getElementById('addForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const login = newLogin.value;
+    const r = await api('POST', '/api/admin/users', { login, fullName: newName.value, role: newRole.value });
+    const m = document.getElementById('addMsg');
+    if (!r.ok) return showMsg(m, r.data.error);
+    showOtp(m, login, r.data.oneTimePassword);
+    e.target.reset(); newRole.value = 'Czytelnik'; loadUsers();
+  });
+
+  document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = { policy_no_sequences: policy_no_sequences.checked ? 1 : 0 };
+    for (const k of ['min_length', 'password_validity_days', 'session_timeout_minutes', 'password_history_count']) {
+      body[k] = Number(document.getElementById(k).value);
+    }
+    const r = await api('PUT', '/api/admin/settings', body);
+    showMsg(document.getElementById('settingsMsg'), r.ok ? 'Zapisano ustawienia.' : r.data.error, r.ok ? 'ok' : 'error');
+  });
+
+  (async () => {
+    await loadMe();
+    roles = (await api('GET', '/api/admin/roles')).data;
+    for (const r of roles) newRole.append(el('option', r, { value: r, selected: r === 'Czytelnik' }));
+    loadUsers(); loadSettings();
+  })();
+</script>
+</body>
+</html>

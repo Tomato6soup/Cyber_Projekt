@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tun tun tun sahur 67</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo">UBB</span>Anna Tkach</div>
+  <nav>
+    <a class="nav-link active" href="/app">Aplikacja</a>
+    <a class="nav-link" id="adminLink" href="/admin" hidden>Panel administratora</a>
+    <a class="nav-link" href="/change-password.html">Zmień hasło</a>
+    <div class="user-chip"><span class="who" data-who></span><span class="idle" data-idle></span></div>
+    <button class="btn btn-sm" onclick="logout()">Wyloguj</button>
+  </nav>
+</header>
+<main>
+  <h1 class="page-title">Artykuły</h1>
+  <p class="page-sub">Treści dostępne dla Twojej roli.</p>
+
+  <div class="card" id="newArticle" hidden>
+    <h2>Nowy artykuł</h2>
+    <form id="articleForm">
+      <div class="field"><label for="title">Tytuł</label><input id="title" required></div>
+      <div class="field"><label for="body">Treść</label><textarea id="body" rows="4" required></textarea></div>
+      <div class="form-actions"><button type="submit">Opublikuj</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div id="articles"></div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h2>Uwierzytelnianie dwuskładnikowe (TOTP)</h2>
+      <div id="totpStatus"></div>
+      <div id="totpSetup" hidden>
+        <p class="hint">Zeskanuj kod w aplikacji (Google Authenticator, Microsoft Authenticator, Aegis) i wpisz wygenerowany kod.</p>
+        <div class="qr"><img id="qr" alt="Kod QR TOTP"><p class="hint">Klucz:<br><code id="secret"></code></p></div>
+        <div class="form-grid">
+          <div class="field"><label for="totpCode">Kod z aplikacji</label><input id="totpCode" inputmode="numeric" maxlength="6"></div>
+          <button id="totpEnable">Włącz</button>
+        </div>
+      </div>
+      <div id="totpMsg" class="msg"></div>
+    </div>
+    <div class="card">
+      <h2>Test autoryzacji</h2>
+      <p class="hint" style="margin: 0 0 16px">Wywołuje API panelu administratora. Dla ról bez uprawnienia <code>users.manage</code> serwer zwraca 403,
+        niezależnie od tego, co pokazuje interfejs.</p>
+      <button class="btn-outline" id="test403">GET /api/admin/users</button>
+      <div id="test403msg" class="msg"></div>
+    </div>
+  </div>
+</main>
+<script src="/common.js"></script>
+<script>
+  let me;
+  async function loadArticles() {
+    const box = document.getElementById('articles');
+    box.replaceChildren();
+    if (!me.permissions.includes('articles.read')) return box.append(el('p', 'Brak uprawnień do odczytu.', { className: 'empty' }));
+    const { data } = await api('GET', '/api/articles');
+    if (!data.length) box.append(el('p', 'Brak artykułów.', { className: 'empty' }));
+    for (const a of data) {
+      const div = el('div', null, { className: 'article' });
+      const text = el('div');
+      text.append(el('h3', a.title), el('p', a.body),
+        el('p', `${a.author || 'usunięty użytkownik'} · ${new Date(a.created_at).toLocaleString('pl-PL')}`, { className: 'hint' }));
+      div.append(text);
+      if (me.permissions.includes('articles.write')) {
+        const del = el('button', 'Usuń', { className: 'btn-danger btn-sm' });
+        del.onclick = async () => { await api('DELETE', '/api/articles/' + a.id); loadArticles(); };
+        div.append(del);
+      }
+      box.append(div);
+    }
+  }
+  function renderTotp() {
+    const s = document.getElementById('totpStatus');
+    s.replaceChildren();
+    if (me.totpEnabled) {
+      s.append(el('p', 'TOTP jest włączone.', { className: 'badge green' }));
+      const b = el('button', 'Wyłącz TOTP', { className: 'btn-outline' });
+      b.style.marginTop = '12px'; b.style.display = 'flex';
+      b.onclick = async () => {
+        const password = prompt('Podaj hasło, aby wyłączyć TOTP');
+        if (!password) return;
+        const { ok, data } = await api('POST', '/api/totp/disable', { password });
+        if (!ok) return showMsg(document.getElementById('totpMsg'), data.error);
+        me.totpEnabled = false; renderTotp();
+      };
+      s.append(b);
+    } else {
+      s.append(el('p', 'Dodaj drugi składnik logowania: kod z aplikacji w telefonie.', { className: 'hint' }));
+      const b = el('button', 'Skonfiguruj TOTP');
+      b.style.marginTop = '16px';
+      b.onclick = async () => {
+        const { data } = await api('POST', '/api/totp/setup');
+        document.getElementById('qr').src = data.qr;
+        document.getElementById('secret').textContent = data.secret;
+        document.getElementById('totpSetup').hidden = false;
+        b.hidden = true;
+      };
+      s.append(b);
+    }
+  }
+  document.getElementById('totpEnable').onclick = async () => {
+    const { ok, data } = await api('POST', '/api/totp/enable', { code: document.getElementById('totpCode').value });
+    const m = document.getElementById('totpMsg');
+    if (!ok) return showMsg(m, data.error);
+    showMsg(m, 'TOTP włączone. Przy następnym logowaniu podasz kod z aplikacji.', 'ok');
+    document.getElementById('totpSetup').hidden = true;
+    me.totpEnabled = true; renderTotp();
+  };
+    document.getElementById('test403').onclick = async () => {
+    const { status, data } = await api('GET', '/api/admin/users');
+    // Serwer odmówił (403) - przechodzimy na stronę /admin, którą serwer też blokuje i pokazuje 403.html.
+    if (status === 403) { location.href = '/admin'; return; }
+    showMsg(document.getElementById('test403msg'), `HTTP ${status}: ${JSON.stringify(data).slice(0, 200)}`, status === 200 ? 'ok' : 'error');
+  };
+  document.getElementById('articleForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await api('POST', '/api/articles', { title: title.value, body: body.value });
+    e.target.reset(); loadArticles();
+  });
+  loadMe().then((data) => {
+    me = data;
+    // Ukrywanie elementów to tylko wygoda - o dostępie decyduje serwer.
+    document.getElementById('newArticle').hidden = !me.permissions.includes('articles.write');
+    document.getElementById('adminLink').hidden = !me.permissions.includes('users.manage');
+    loadArticles(); renderTotp();
+  });
+</script>
+</body>
+</html>

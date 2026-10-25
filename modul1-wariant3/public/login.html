@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Logowanie</title><link rel="stylesheet" href="/style.css"></head>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="logo">UBB</div>
+    <h1>Zaloguj się</h1>
+    <p class="page-sub">Podaj login i hasło, aby kontynuować.</p>
+    <form id="loginForm" autocomplete="on">
+      <div class="field"><label for="login">Login</label>
+        <input id="login" name="username" autocomplete="username" required></div>
+      <div class="field"><label for="password">Hasło</label>
+        <input id="password" type="password" autocomplete="current-password" required></div>
+      <div class="form-actions"><button type="submit" class="btn-block">Zaloguj</button></div>
+    </form>
+    <form id="totpForm" hidden>
+      <div class="field"><label for="code">Kod z aplikacji uwierzytelniającej (TOTP)</label>
+        <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></div>
+      <div class="form-actions"><button type="submit" class="btn-block">Potwierdź</button></div>
+    </form>
+    <div id="msg" class="msg"></div>
+  </div>
+<script src="/common.js"></script>
+<script>
+  const msg = document.getElementById('msg');
+  if (new URLSearchParams(location.search).has('expired')) {
+    showMsg(msg, 'Zostałeś wylogowany z powodu bezczynności.', 'ok');
+  }
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const { ok, data } = await api('POST', '/api/login', {
+      login: document.getElementById('login').value,
+      password: document.getElementById('password').value,
+    });
+    document.getElementById('password').value = '';
+    if (!ok) return showMsg(msg, data.error);
+    if (data.next === 'totp') {
+      e.target.hidden = true;
+      document.getElementById('totpForm').hidden = false;
+      msg.className = 'msg';
+      return document.getElementById('code').focus();
+    }
+    location.href = data.next;
+  });
+  document.getElementById('totpForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const { ok, data } = await api('POST', '/api/login/totp', { code: document.getElementById('code').value });
+    if (!ok) return showMsg(msg, data.error);
+    location.href = data.next;
+  });
+</script>
+</body>
+</html>

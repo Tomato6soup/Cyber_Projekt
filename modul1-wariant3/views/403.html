@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>403 - Brak dostępu</title><link rel="stylesheet" href="/style.css"></head>
+<body class="auth-page error-page">
+  <div class="auth-card">
+    <div class="logo">403</div>
+    <h1>Brak dostępu</h1>
+    <p class="page-sub">Twoja rola nie ma uprawnień do tej strony (HTTP 403 Forbidden).</p>
+
+    <div class="fun-progress">
+      <div class="fun-progress-label" id="progressLabel">Szukanie Twoich uprawnień…</div>
+      <div class="fun-progress-bar"><span id="progressBar"></span></div>
+    </div>
+
+    <img src="/403.gif" alt="Brak dostępu" onerror="this.remove()" style="width:100%; border-radius:10px; margin-bottom:20px">
+
+    <details class="fun-details">
+      <summary>Szczegóły techniczne</summary>
+      <p>Kod błędu: <code>0x403</code><br>
+         Przyczyna: jesteś Czytelnikiem/Redaktorem<br>
+         Rozwiązanie: zostań Administratorem (meh)<br>
+         Czy problem zgłoszono? Tak, adminowi.</p>
+    </details>
+
+    <div class="dialog-buttons">
+      <button type="button" class="btn btn-outline" id="allowBtn">Zezwól mimo to</button>
+      <button type="button" class="btn btn-outline" id="cancelBtn">Anuluj</button>
+      <a class="btn" href="/app">Wróć do aplikacji</a>
+    </div>
+  </div>
+<script src="/common.js"></script>
+<script>
+  
+  const bar = document.getElementById('progressBar');
+  const label = document.getElementById('progressLabel');
+  let p = 0, attempt = 1;
+  setInterval(() => {
+    p += p < 90 ? 7 : 1;
+    if (p > 99) label.textContent = 'Nie znaleziono uprawnień. Nikt nie jest zaskoczony.';
+    if (p > 130) { p = 0; label.textContent = `Szukanie Twoich uprawnień… (podejście nr ${++attempt})`; }
+    bar.style.width = Math.min(p, 99) + '%';
+  }, 200);
+
+  // „Zezwól mimo to” ucieka przed kursorem.
+  const allow = document.getElementById('allowBtn');
+  const runAway = () => {
+    const x = Math.round((Math.random() - .5) * 260);
+    const y = Math.round((Math.random() - .5) * 120);
+    allow.style.transform = `translate(${x}px, ${y}px)`;
+  };
+  allow.addEventListener('mouseenter', runAway);
+  allow.addEventListener('click', () => { allow.textContent = 'Haha, nie.'; runAway(); });
+
+  // „Anuluj” nie chce się anulować
+  const cancelTexts = ['Nie można anulować', 'Anulowanie anulowane', 'Serio, nie można', 'No dobra, wracamy…'];
+  let c = 0;
+  document.getElementById('cancelBtn').onclick = (e) => {
+    if (c === cancelTexts.length) { location.href = '/app'; return; }
+    e.target.textContent = cancelTexts[c++];
+  };
+</script>
+</body>
+</html>

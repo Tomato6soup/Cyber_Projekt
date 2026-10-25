@@ -1,0 +1,239 @@
+
+
+/* ---------- przełącznik widoku (widoczny w obu trybach) ---------- */
+.theme-toggle {
+  position: fixed; right: 16px; bottom: 16px; z-index: 50;
+  height: 36px; padding: 0 16px; border-radius: 999px;
+  background: #0b2545; color: #fff; font-size: 13px;
+  box-shadow: 0 4px 14px rgba(11, 37, 69, .25);
+}
+.theme-toggle:hover { background: #13315c; }
+
+/* ---------- tło: niebo, woda i bąbelki ---------- */
+body.pro {
+  --navy: #0a3a6b;
+  --blue-900: #0d4a85;
+  --text: #0b2a4a;
+  --muted: #3d6487;
+  font-family: "Segoe UI", "Frutiger", "Lucida Grande", system-ui, sans-serif;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255,255,255,.55) 0 40px, transparent 41px),
+    radial-gradient(circle at 85% 12%, rgba(255,255,255,.35) 0 70px, transparent 71px),
+    radial-gradient(circle at 70% 78%, rgba(255,255,255,.30) 0 55px, transparent 56px),
+    radial-gradient(circle at 28% 88%, rgba(255,255,255,.25) 0 28px, transparent 29px),
+    radial-gradient(ellipse 120% 60% at 50% 115%, #1aa6d9 0%, transparent 70%),
+    linear-gradient(180deg, #d9f2ff 0%, #9fd8f7 35%, #4fb3e8 70%, #1d86c9 100%);
+  background-attachment: fixed;
+  color: var(--text);
+}
+body.pro.auth-page { background-attachment: fixed; }
+
+/* ---------- szklane karty ---------- */
+body.pro .card,
+body.pro .auth-card {
+  background: linear-gradient(180deg, rgba(255,255,255,.62) 0%, rgba(255,255,255,.38) 100%);
+  border: 1px solid rgba(255,255,255,.85);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95), inset 0 -1px 0 rgba(255,255,255,.35),
+              0 8px 32px rgba(10, 60, 110, .25);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
+}
+body.pro h1, body.pro h2, body.pro .page-title { color: var(--navy); text-shadow: 0 1px 0 rgba(255,255,255,.9), 0 0 12px rgba(255,255,255,.7); }
+body.pro .page-sub, body.pro .hint { color: var(--muted); }
+
+/* ---------- górny pasek jak pasek zadań Visty ---------- */
+body.pro .topbar {
+  background: linear-gradient(180deg, rgba(60,90,130,.72) 0%, rgba(20,35,60,.82) 50%, rgba(5,15,35,.9) 51%, rgba(15,35,65,.85) 100%);
+  border-bottom: 1px solid rgba(140,200,255,.5);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 2px 12px rgba(0,30,70,.35);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+body.pro .nav-link:hover, body.pro .nav-link.active {
+  background: linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,.08));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.35);
+}
+
+/* ---------- logo jak kula Aqua ---------- */
+body.pro .logo {
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, #e6f7ff 0%, #6cc6ff 35%, #1478d4 70%, #0b4f9c 100%);
+  box-shadow: inset 0 2px 3px rgba(255,255,255,.9), 0 2px 6px rgba(0,50,120,.4);
+  text-shadow: 0 1px 1px rgba(0,40,90,.6);
+}
+
+/* ---------- przyciski z żelu (Aqua) ---------- */
+body.pro button, body.pro .btn {
+  position: relative; overflow: hidden; isolation: isolate;
+  border-radius: 999px;
+  border: 1px solid #1d5fa8;
+  background: linear-gradient(180deg, #a9dcff 0%, #5fb3f5 48%, #2c86e0 52%, #57b0ff 100%);
+  color: #fff; text-shadow: 0 1px 1px rgba(0,40,100,.55);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 2px 6px rgba(0,60,140,.35);
+}
+body.pro button::before, body.pro .btn::before {
+  content: ""; position: absolute; left: 8%; right: 8%; top: 1px; height: 48%;
+  border-radius: 999px; pointer-events: none; z-index: -1;
+  background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,.1));
+}
+body.pro button:hover, body.pro .btn:hover {
+  background: linear-gradient(180deg, #c4e8ff 0%, #78c2fa 48%, #3a95ec 52%, #70c0ff 100%);
+  color: #fff;
+}
+body.pro .btn-ghost, body.pro .btn-outline {
+  border-color: rgba(120,170,220,.9);
+  background: linear-gradient(180deg, #ffffff 0%, #eef6fd 48%, #dcebf8 52%, #f4f9ff 100%);
+  color: var(--navy); text-shadow: 0 1px 0 #fff;
+}
+body.pro .btn-ghost:hover, body.pro .btn-outline:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #e2f1fd 48%, #c9e2f8 52%, #eaf5ff 100%);
+  color: var(--navy);
+}
+body.pro .btn-danger {
+  border-color: #a8231b;
+  background: linear-gradient(180deg, #ffb3a8 0%, #f2665a 48%, #d9362b 52%, #f26a5e 100%);
+  color: #fff; text-shadow: 0 1px 1px rgba(100,0,0,.5);
+}
+body.pro .btn-danger:hover { background: linear-gradient(180deg, #ffc6bd 0%, #f57b70 48%, #e04a3f 52%, #f58076 100%); color: #fff; }
+body.pro .topbar .btn {
+  border-color: rgba(255,255,255,.35);
+  background: linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,.08) 50%, rgba(0,0,0,.15) 51%, rgba(255,255,255,.12));
+}
+
+/* ---------- pola formularzy ---------- */
+body.pro input, body.pro select, body.pro textarea {
+  border: 1px solid #8fb8dc;
+  border-radius: 8px;
+  background-color: rgba(255,255,255,.88);
+  box-shadow: inset 0 2px 3px rgba(0,50,100,.12);
+}
+body.pro input:focus, body.pro select:focus, body.pro textarea:focus {
+  border-color: #3a9be8;
+  box-shadow: inset 0 2px 3px rgba(0,50,100,.1), 0 0 0 3px rgba(80,180,255,.35), 0 0 12px rgba(80,180,255,.5);
+}
+body.pro label { color: var(--navy); }
+
+/* ---------- tabela, odznaki, komunikaty ---------- */
+body.pro th { color: var(--navy); border-bottom-color: rgba(255,255,255,.8); }
+body.pro td { border-bottom-color: rgba(255,255,255,.55); }
+body.pro tbody tr:hover td { background: rgba(255,255,255,.35); }
+body.pro td.login { color: var(--navy); }
+body.pro .badge {
+  background: linear-gradient(180deg, #ffffff, #d4ebfb);
+  border: 1px solid #9cc8ea; color: #0d4a85;
+  box-shadow: inset 0 1px 0 #fff;
+}
+body.pro .badge.green { background: linear-gradient(180deg, #f2fff4, #c3f0cc); border-color: #86d39a; color: #146b2e; }
+body.pro .badge.red { background: linear-gradient(180deg, #fff4f2, #fcc9c2); border-color: #eb9a8f; color: #a3241a; }
+body.pro .msg.ok, body.pro .msg.error {
+  border: 1px solid rgba(255,255,255,.8);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.9);
+}
+body.pro .msg.ok { background: linear-gradient(180deg, rgba(230,255,238,.9), rgba(200,245,215,.8)); }
+body.pro .msg.error { background: linear-gradient(180deg, rgba(255,238,235,.92), rgba(255,210,204,.85)); }
+body.pro .otp { background: rgba(255,255,255,.85); border-color: #3a9be8; }
+body.pro .switch-row { background: rgba(255,255,255,.4); border: 1px solid rgba(255,255,255,.8); }
+body.pro .switch input:checked + span { background: linear-gradient(180deg, #8fd0ff, #2c86e0); }
+body.pro code { background: rgba(255,255,255,.7); }
+
+/* przełącznik w trybie Pro */
+body.pro .theme-toggle {
+  position: fixed;
+  height: 36px;
+  border-color: #1d5fa8;
+}
+body.pro { min-height: 100vh; }
+/* ---------- strona 403: (w obu trybach) ---------- */
+.error-page .fun-progress { margin-bottom: 16px; }
+.error-page .fun-progress-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.error-page .fun-progress-bar { height: 14px; border-radius: 4px; overflow: hidden; background: #e2e8f0; border: 1px solid #cbd5e1; }
+.error-page .fun-progress-bar span { display: block; height: 100%; width: 0; background: var(--blue-600); transition: width .2s linear; }
+.error-page .fun-details { margin-bottom: 16px; font-size: 13px; color: var(--muted); }
+.error-page .fun-details summary { cursor: pointer; color: var(--blue-700); }
+.error-page .fun-details p { margin: 8px 0 0; }
+.error-page .dialog-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.error-page #allowBtn { transition: transform .25s ease-out; position: relative; z-index: 2; }
+
+/* ---------- strona 403 w trybie Pro: okno błędu w stylu Visty ---------- */
+body.pro.error-page {
+  background:
+    linear-gradient(rgba(0, 25, 60, .45), rgba(0, 25, 60, .45)),
+    radial-gradient(circle at 12% 18%, rgba(255,255,255,.55) 0 40px, transparent 41px),
+    radial-gradient(circle at 85% 12%, rgba(255,255,255,.35) 0 70px, transparent 71px),
+    radial-gradient(circle at 70% 78%, rgba(255,255,255,.30) 0 55px, transparent 56px),
+    linear-gradient(180deg, #d9f2ff 0%, #9fd8f7 35%, #4fb3e8 70%, #1d86c9 100%);
+  background-attachment: fixed;
+}
+body.pro.error-page .auth-card {
+  position: relative;
+  max-width: 500px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  column-gap: 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(20, 50, 90, .8);
+  background: linear-gradient(180deg, #ffffff 0%, #f1f7fc 100%) padding-box;
+  box-shadow: 0 0 0 7px rgba(170, 215, 245, .55), 0 0 0 8px rgba(20, 50, 90, .6),
+              0 20px 60px rgba(0, 20, 50, .6);
+  overflow: visible;
+}
+/* pasek tytułu okna */
+body.pro.error-page .auth-card::before {
+  content: "Kontrola Konta (Nie odpowiada)";
+  grid-column: 1 / -1;
+  display: flex; align-items: center;
+  height: 34px; padding: 0 70px 0 14px; margin-bottom: 22px;
+  border-radius: 9px 9px 0 0;
+  font-size: 13px; color: #0b2a4a; text-shadow: 0 0 8px #fff, 0 1px 0 #fff;
+  background: linear-gradient(180deg, rgba(220,240,255,.95) 0%, rgba(170,215,245,.95) 50%, rgba(140,195,235,.95) 51%, rgba(185,225,250,.95) 100%);
+  border-bottom: 1px solid rgba(20, 50, 90, .35);
+}
+/* czerwony przycisk zamykania (tylko na pokaz) */
+body.pro.error-page .auth-card::after {
+  content: "✕";
+  position: absolute; top: 0; right: 10px;
+  width: 44px; height: 20px;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 1px rgba(90,0,0,.7);
+  border: 1px solid #6b1510; border-top: 0; border-radius: 0 0 5px 5px;
+  background: linear-gradient(180deg, #f2a69c 0%, #d9473b 50%, #b8261b 51%, #e2685c 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+}
+/* ikona błędu: czerwona kula */
+body.pro.error-page .logo {
+  grid-column: 1; grid-row: 2 / span 2;
+  width: 56px; height: 56px; margin: 0 0 0 20px; font-size: 16px;
+  background: radial-gradient(circle at 50% 30%, #ffe2dd 0%, #ff7a6b 35%, #d42a1d 70%, #8e130b 100%);
+  box-shadow: inset 0 2px 3px rgba(255,255,255,.9), 0 2px 8px rgba(120,0,0,.45);
+  animation: angry-shake 2.5s ease-in-out infinite;
+}
+@keyframes angry-shake {
+  0%, 70%, 100% { transform: rotate(0); }
+  74% { transform: rotate(-14deg) scale(1.08); }
+  78% { transform: rotate(12deg) scale(1.08); }
+  82% { transform: rotate(-10deg); }
+  86% { transform: rotate(8deg); }
+  90% { transform: rotate(0); }
+}
+body.pro.error-page h1 { grid-column: 2; margin: 0 24px 4px 0; font-size: 20px; color: #0d3d73; text-shadow: none; }
+body.pro.error-page .page-sub { grid-column: 2; margin: 0 24px 16px 0; font-size: 14px; }
+body.pro.error-page .fun-progress,
+body.pro.error-page .fun-details { grid-column: 1 / -1; margin: 0 24px 16px; }
+body.pro.error-page .auth-card img { grid-column: 1 / -1; width: calc(100% - 48px) !important; margin: 0 24px 16px !important; border: 1px solid #c5d9ea; }
+/* zielony pasek postępu jak w starym Windowsie */
+body.pro.error-page .fun-progress-bar { height: 16px; border-radius: 3px; background: linear-gradient(#f3f3f3, #dcdcdc); border-color: #8a9bb0; }
+body.pro.error-page .fun-progress-bar span {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.7) 0%, rgba(255,255,255,0) 50%),
+    linear-gradient(180deg, #7ee06c 0%, #2fb32a 50%, #1f9a1c 51%, #5bd54b 100%);
+}
+/* dolny pasek z przyciskami, jak w oknach dialogowych */
+body.pro.error-page .dialog-buttons {
+  grid-column: 1 / -1;
+  margin: 0; padding: 12px 24px 14px;
+  border-top: 1px solid #d5e3ef; border-radius: 0 0 9px 9px;
+  background: #eef4fa;
+}
+body.pro.error-page .dialog-buttons .btn { padding: 0 20px; }
