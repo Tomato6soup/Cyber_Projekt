@@ -51,6 +51,20 @@ CREATE TABLE IF NOT EXISTS articles (
   author_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at INTEGER NOT NULL
 );
+-- Moduł 2: liczniki nieudanych logowań (po wpisanym loginie) i dziennik zdarzeń bezpieczeństwa.
+CREATE TABLE IF NOT EXISTS login_attempts (
+  login        TEXT PRIMARY KEY COLLATE NOCASE,
+  failed       INTEGER NOT NULL DEFAULT 0,
+  locked_until INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS security_events (
+  id         INTEGER PRIMARY KEY,
+  type       TEXT NOT NULL,
+  login      TEXT,
+  ip         TEXT,
+  details    TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
 `);
 
 // Macierz uprawnień (zasada najmniejszych uprawnień).
@@ -71,6 +85,8 @@ const DEFAULT_SETTINGS = {
   password_validity_days: '0',    // 0 = bez wygasania (NIST nie zaleca okresowej zmiany)
   session_timeout_minutes: '15',
   password_history_count: '5',
+  max_failed_logins: '5',         // Moduł 2: po tylu złych hasłach konto blokuje się na 15 minut
+  ip_max_failed: '15',            // Moduł 2 (dodatkowe): limit nieudanych logowań z jednego IP
 };
 
 db.transaction(() => {
