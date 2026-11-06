@@ -12,7 +12,21 @@
         <input id="login" name="username" autocomplete="username" required></div>
       <div class="field"><label for="password">Hasło</label>
         <input id="password" type="password" autocomplete="current-password" required></div>
-      <div class="form-actions"><button type="submit" class="btn-block">Zaloguj</button></div>
+      <div class="field captcha">
+        <label for="captcha">Weryfikacja: <span id="captchaQuestion">…</span></label>
+        <div class="captcha-box">
+          <img id="captchaImg" alt="Obrazek z figurami do policzenia">
+          <button type="button" class="btn-outline btn-sm" id="captchaRefresh" title="Nowy obrazek">↻</button>
+        </div>
+        <input id="captcha" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="Wpisz liczbę figur" required>
+        <p class="hint" id="captchaTimer"></p>
+      </div>
+      <!-- pułapka na boty: pole niewidoczne dla człowieka, wypełnia je tylko program -->
+      <div class="hp" aria-hidden="true">
+        <label for="website">Strona internetowa</label>
+        <input id="website" name="website" tabindex="-1" autocomplete="off">
+      </div>
+      <div class="form-actions"><button type="submit" class="btn-block" id="loginBtn">Zaloguj</button></div>
     </form>
     <form id="totpForm" hidden>
       <div class="field"><label for="code">Kod z aplikacji uwierzytelniającej (TOTP)</label>
@@ -27,15 +41,55 @@
   if (new URLSearchParams(location.search).has('expired')) {
     showMsg(msg, 'Zostałeś wylogowany z powodu bezczynności.', 'ok');
   }
+
+  // CAPTCHA wariantu 3: nowy obrazek przy starcie, po każdej próbie i po upływie ważności.
+  let captchaTimer;
+  async function loadCaptcha() {
+    const { data } = await api('GET', '/api/captcha');
+    document.getElementById('captchaImg').src = data.image;
+    document.getElementById('captchaQuestion').textContent = data.question;
+    document.getElementById('captcha').value = '';
+    let left = data.validSeconds;
+    clearInterval(captchaTimer);
+    const tick = () => {
+      document.getElementById('captchaTimer').textContent = `Obrazek ważny jeszcze ${fmt(left)}`;
+      if (left-- <= 0) loadCaptcha();
+    };
+    tick(); captchaTimer = setInterval(tick, 1000);
+  }
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  document.getElementById('captchaRefresh').onclick = loadCaptcha;
+  loadCaptcha();
+
+  // Blokada konta / adresu IP: odliczanie pozostałego czasu i wyłączony przycisk.
+  let lockTimer;
+  function showLock(text, seconds) {
+    const btn = document.getElementById('loginBtn');
+    clearInterval(lockTimer);
+    btn.disabled = true;
+    const tick = () => {
+      if (seconds <= 0) { clearInterval(lockTimer); btn.disabled = false; msg.className = 'msg'; return; }
+      showMsg(msg, `${text}\nPozostały czas blokady: ${fmt(seconds--)}`);
+    };
+    tick(); lockTimer = setInterval(tick, 1000);
+  }
+
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const { ok, data } = await api('POST', '/api/login', {
+    const { ok, status, data } = await api('POST', '/api/login', {
       login: document.getElementById('login').value,
       password: document.getElementById('password').value,
+      captcha: document.getElementById('captcha').value,
+      website: document.getElementById('website').value,
     });
     document.getElementById('password').value = '';
-    if (!ok) return showMsg(msg, data.error);
+    if (!ok) {
+      loadCaptcha();
+      if (status === 429) return showLock(data.error, data.retryAfter);
+      return showMsg(msg, data.error);
+    }
     if (data.next === 'totp') {
+      clearInterval(captchaTimer);
       e.target.hidden = true;
       document.getElementById('totpForm').hidden = false;
       msg.className = 'msg';

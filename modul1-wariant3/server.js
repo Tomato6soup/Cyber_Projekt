@@ -1,6 +1,4 @@
-// Moduł 1 - Identyfikacja, uwierzytelnianie i autoryzacja (wariant 3).
-//Serce aplikacji, uruchamia serwer, 
-//obsługuje sesję, logowanie, zmianę hasła, panel admina, TOTP i sprawdzanie uprawnień
+// Moduł 2 - Zabezpieczenia przed botami, ruchem automatycznym i wyciekiem danych (wariant 3).
 const express = require('express');
 const session = require('express-session');
 const crypto = require('crypto');
@@ -12,6 +10,9 @@ const QRCode = require('qrcode');
 const { db, getSettings, setSetting, getPermissions, roleId } = require('./db');
 const policy = require('./passwordPolicy');
 const { hashPassword, createUser, resetPassword } = require('./users');
+const captcha = require('./captcha');
+const sec = require('./security');
+const config = require('./config');
 
 const PORT = process.env.PORT || 3000;
 const LOGIN_ERROR = 'Login lub hasło niepoprawne';
@@ -33,8 +34,7 @@ const getUser = (id) => db.prepare(`SELECT u.*, r.name AS role FROM users u
                                      JOIN roles r ON r.id = u.role_id WHERE u.id = ?`).get(id);
 const isAdminAccount = (u) => u.login === 'ADMIN';
 
-// Hash "na pusto" - weryfikujemy go, gdy login nie istnieje, żeby czas odpowiedzi
-// nie zdradzał, czy konto istnieje.
+
 let DUMMY_HASH;
 
 function passwordExpired(user, settings) {
@@ -54,7 +54,7 @@ function finishLogin(req, user) {
 
 // ---------- middleware: sesja, uwierzytelnienie, autoryzacja ----------
 
-// Sprawdza sesję i czas bezczynności po stronie serwera (nie tylko w przeglądarce).
+
 function requireAuth(req, res, next) {
   const s = req.session;
   if (!s.userId) return deny(req, res, 401, 'Nie jesteś zalogowany');
@@ -96,6 +96,15 @@ const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).cat
 // ---------- strony ----------
 
 app.get('/', (req, res) => res.redirect('/login.html'));
+
+// Plik-pułapka wskazany w robots.txt.
+app.get(/^\/backup(\/.*)?$/, (req, res) => {
+  sec.logEvent('canary-file', req, { details: `Pobranie pliku-pułapki ${req.path}` });
+  res.sendFile(path.basename(req.path), { root: path.join(__dirname, 'canary') }, (err) => {
+    if (err && !res.headersSent) res.status(404).end();
+  });
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/app', auth, (req, res) => res.sendFile(path.join(__dirname, 'views', 'app.html')));
 app.get('/admin', auth, requirePermission('users.manage'),
@@ -103,12 +112,80 @@ app.get('/admin', auth, requirePermission('users.manage'),
 
 // ---------- logowanie / wylogowanie ----------
 
+// Publiczna konfiguracja dla przeglądarki (klucz witryny reCAPTCHA nie jest tajny).
+app.get('/api/config', (req, res) => res.json({ recaptchaSiteKey: config.recaptchaSiteKey }));
+
+// Nowe wyzwanie CAPTCHA (wariant 3). Odpowiedź zostaje tylko w sesji na serwerze.
+app.get('/api/captcha', (req, res) => {
+  const { image, question, answer, expiresAt } = captcha.createChallenge();
+  req.session.captcha = { answer, expiresAt };
+  res.json({ image, question, validSeconds: captcha.VALID_MS / 1000 });
+});
+
+function lockedResponse(res, lockedUntil, reason) {
+  const retryAfter = Math.ceil((lockedUntil - Date.now()) / 1000);
+  res.set('Retry-After', String(retryAfter));
+  return res.status(429).json({ error: `${reason} Spróbuj ponownie później.`, lockedUntil, retryAfter });
+}
+
+// Rejestruje nieudaną próbę na adresie IP i zapisuje alert, gdy IP właśnie zostało zablokowane.
+function ipFailure(req, login) {
+  const until = sec.registerIpFailure(req.ip);
+  if (until) sec.logEvent('ip-block', req, { login, details: `Adres IP zablokowany na 15 min po ${getSettings().ip_max_failed} nieudanych próbach` });
+  return until;
+}
+
 app.post('/api/login', wrap(async (req, res) => {
-  const { login, password } = req.body || {};
+  const { login, password, captcha: captchaAnswer, website } = req.body || {};
   if (typeof login !== 'string' || typeof password !== 'string') return res.status(400).json({ error: LOGIN_ERROR });
+
+  // 1. Limit prób z jednego adresu IP, niezależnie od loginu (zadanie dodatkowe).
+  const ipUntil = sec.ipLockedUntil(req.ip);
+  if (ipUntil) return lockedResponse(res, ipUntil, 'Zbyt wiele nieudanych prób logowania z tego adresu IP.');
+
+  // 2. Pułapka na boty: ukryte pole "website" wypełni tylko program. Bot dostaje zwykły komunikat,
+  //    żeby nie wiedział, że został wykryty.
+  if (website) {
+    sec.logEvent('honeypot', req, { login, details: 'Wypełnione ukryte pole formularza logowania' });
+    ipFailure(req, login);
+    return res.status(401).json({ error: LOGIN_ERROR });
+  }
+
+  // 3. Konto-pułapka (honeytoken): nikt uprawniony go nie używa, więc każda próba to incydent.
+  if (config.decoyLogins.includes(login.toLowerCase())) {
+    await argon2.verify(DUMMY_HASH, password);  // taki sam czas odpowiedzi jak dla zwykłego konta
+    sec.logEvent('canary-account', req, { login, details: 'Próba logowania na konto-pułapkę' });
+    sec.triggerCanary(config.canaryAccountUrl, { login, ip: req.ip });
+    ipFailure(req, login);
+    return res.status(401).json({ error: LOGIN_ERROR });
+  }
+
+  // 4. Czasowa blokada konta po zbyt wielu złych hasłach.
+  const accountUntil = sec.accountLockedUntil(login);
+  if (accountUntil) return lockedResponse(res, accountUntil, 'Konto jest czasowo zablokowane po zbyt wielu nieudanych próbach.');
+
+  // 5. CAPTCHA wariantu 3. Wyzwanie jest jednorazowe: usuwamy je z sesji przed sprawdzeniem.
+  const challenge = req.session.captcha;
+  delete req.session.captcha;
+  if (!captcha.checkAnswer(challenge, captchaAnswer)) {
+    sec.logEvent('captcha', req, { login, details: challenge ? 'Zła odpowiedź lub wyzwanie wygasło' : 'Brak wyzwania CAPTCHA' });
+    return res.status(400).json({ error: 'Niepoprawna odpowiedź CAPTCHA. Policz figury na nowym obrazku.' });
+  }
+
+  // 6. Hasło.
   const row = db.prepare('SELECT id, password_hash FROM users WHERE login = ?').get(login);
   const ok = await argon2.verify(row ? row.password_hash : DUMMY_HASH, password);
-  if (!row || !ok) return res.status(401).json({ error: LOGIN_ERROR });
+  if (!row || !ok) {
+    const ipUntilNow = ipFailure(req, login);
+    const f = sec.registerFailure(login);
+    if (f.lockedUntil) {
+      sec.logEvent('lockout', req, { login, details: `Konto zablokowane na 15 min po ${getSettings().max_failed_logins} nieudanych próbach` });
+      return lockedResponse(res, f.lockedUntil, 'Konto zostało czasowo zablokowane po zbyt wielu nieudanych próbach.');
+    }
+    if (ipUntilNow) return lockedResponse(res, ipUntilNow, 'Zbyt wiele nieudanych prób logowania z tego adresu IP.');
+    return res.status(401).json({ error: `${LOGIN_ERROR}. Pozostałe próby: ${f.left}.` });
+  }
+  sec.clearFailures(login);
 
   const user = getUser(row.id);
   // Poniższe komunikaty pojawiają się dopiero po poprawnym haśle, więc nie zdradzają istnienia loginu.
@@ -162,6 +239,11 @@ app.post('/api/change-password', requireAuth, wrap(async (req, res) => {
   const user = req.user;
   if (![oldPassword, newPassword, newPassword2].every((v) => typeof v === 'string')) {
     return res.status(400).json({ errors: ['Uzupełnij wszystkie pola.'] });
+  }
+  // Moduł 2: bez poprawnego tokenu reCAPTCHA (sprawdzonego w Google) formularz jest odrzucany.
+  if (!(await sec.verifyRecaptcha(req.body.recaptchaToken, req.ip))) {
+    sec.logEvent('recaptcha', req, { login: user.login, details: 'Zmiana hasła bez poprawnego tokenu reCAPTCHA' });
+    return res.status(400).json({ errors: ['Potwierdź, że nie jesteś robotem (reCAPTCHA).'] });
   }
   if (!(await argon2.verify(user.password_hash, oldPassword))) {
     return res.status(400).json({ errors: ['Obecne hasło jest niepoprawne.'] });
@@ -218,8 +300,20 @@ const admin = [...auth, requirePermission('users.manage')];
 
 app.get('/api/admin/users', admin, (req, res) => {
   res.json(db.prepare(`SELECT u.id, u.login, u.full_name, r.name AS role, u.is_blocked,
-                       u.must_change_password, u.otp_expires_at, u.totp_enabled, u.created_at
-                       FROM users u JOIN roles r ON r.id = u.role_id ORDER BY u.id`).all());
+                       u.must_change_password, u.otp_expires_at, u.totp_enabled, u.created_at,
+                       COALESCE(la.locked_until, 0) AS locked_until
+                       FROM users u JOIN roles r ON r.id = u.role_id
+                       LEFT JOIN login_attempts la ON la.login = u.login ORDER BY u.id`).all());
+});
+
+// Moduł 2: dziennik zdarzeń bezpieczeństwa i zdejmowanie czasowych blokad.
+app.get('/api/admin/security-events', admin, (req, res) => {
+  res.json(db.prepare('SELECT * FROM security_events ORDER BY id DESC LIMIT 100').all());
+});
+
+app.post('/api/admin/clear-locks', admin, (req, res) => {
+  sec.clearAllLocks();
+  res.json({ ok: true });
 });
 
 app.get('/api/admin/roles', admin, (req, res) => {
@@ -282,6 +376,7 @@ app.put('/api/admin/settings', [...auth, requirePermission('settings.manage')], 
   const limits = {
     min_length: [8, 64], password_validity_days: [0, 3650],
     session_timeout_minutes: [1, 480], password_history_count: [1, 24], policy_no_sequences: [0, 1],
+    max_failed_logins: [1, 20], ip_max_failed: [1, 100],
   };
   for (const [key, [min, max]] of Object.entries(limits)) {
     if (b[key] === undefined) continue;

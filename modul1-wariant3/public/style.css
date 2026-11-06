@@ -181,3 +181,11 @@ td select { min-width: 150px; }
   main { padding: 0 16px; margin-top: 20px; }
   .user-chip { align-items: flex-start; margin: 0 8px 0 0; }
 }
+
+/* ---------- Moduł 2: CAPTCHA i pułapka na boty ---------- */
+.captcha-box { display: flex; gap: 8px; align-items: center; }
+.captcha-box img { flex: 1; min-width: 0; width: 100%; aspect-ratio: 300 / 140; border-radius: 10px; border: 1px solid var(--border); background: var(--blue-50); }
+.captcha-box .btn-sm { flex: none; width: 36px; padding: 0; font-size: 16px; }
+.captcha .hint { margin: 0; }
+.hp { position: absolute; left: -10000px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+button:disabled { opacity: .55; cursor: not-allowed; }
