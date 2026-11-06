@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pl">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Panel poważny</title><link rel="stylesheet" href="/style.css"></head>
+<title>Panel administratora</title><link rel="stylesheet" href="/style.css"></head>
 <body>
 <header class="topbar">
   <div class="brand"><span class="logo">UBB</span>Anna Tkach</div>
@@ -54,11 +54,30 @@
         <div class="field"><label for="password_validity_days">Ważność hasła (dni)</label><input id="password_validity_days" type="number" min="0"></div>
         <div class="field"><label for="session_timeout_minutes">Bezczynność sesji (min)</label><input id="session_timeout_minutes" type="number" min="1"></div>
         <div class="field"><label for="password_history_count">Historia haseł</label><input id="password_history_count" type="number" min="1" max="24"></div>
+        <div class="field"><label for="max_failed_logins">Limit złych haseł na konto</label><input id="max_failed_logins" type="number" min="1" max="20"></div>
+        <div class="field"><label for="ip_max_failed">Limit nieudanych prób z IP</label><input id="ip_max_failed" type="number" min="1" max="100"></div>
       </div>
-      <p class="hint">Ważność 0 oznacza hasło bez wygasania (zalecenie NIST). Historia to liczba poprzednich haseł, których nie można użyć ponownie.</p>
+      <p class="hint">Ważność 0 oznacza hasło bez wygasania (zalecenie NIST). Historia to liczba poprzednich haseł, których nie można użyć ponownie. Po przekroczeniu limitu prób konto (lub adres IP) jest blokowane na 15 minut.</p>
       <div class="form-actions"><button type="submit">Zapisz ustawienia</button></div>
     </form>
     <div id="settingsMsg" class="msg"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Zdarzenia bezpieczeństwa</h2>
+      <div class="actions">
+        <button class="btn-sm btn-ghost" id="refreshEvents">Odśwież</button>
+        <button class="btn-sm btn-outline" id="clearLocks">Zdejmij blokady logowania</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Czas</th><th>Zdarzenie</th><th>Login</th><th>IP</th><th>Szczegóły</th></tr></thead>
+        <tbody id="events"></tbody>
+      </table>
+    </div>
+    <div id="eventsMsg" class="msg"></div>
   </div>
 </main>
 <script src="/common.js"></script>
@@ -86,6 +105,10 @@
 
       const status = el('td', null, { className: 'status' });
       if (u.is_blocked) status.append(el('span', 'zablokowany', { className: 'badge red' }));
+      else if (u.locked_until > Date.now()) {
+        const min = Math.ceil((u.locked_until - Date.now()) / 60000);
+        status.append(el('span', `blokada czasowa (${min} min)`, { className: 'badge red' }));
+      }
       else if (u.must_change_password) status.append(el('span', 'hasło jednorazowe', { className: 'badge' }));
       else status.append(el('span', 'aktywny', { className: 'badge green' }));
       if (u.totp_enabled) status.append(el('span', 'TOTP', { className: 'badge gray' }));
@@ -140,18 +163,51 @@
   document.getElementById('settingsForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const body = { policy_no_sequences: policy_no_sequences.checked ? 1 : 0 };
-    for (const k of ['min_length', 'password_validity_days', 'session_timeout_minutes', 'password_history_count']) {
+    for (const k of ['min_length', 'password_validity_days', 'session_timeout_minutes', 'password_history_count',
+                     'max_failed_logins', 'ip_max_failed']) {
       body[k] = Number(document.getElementById(k).value);
     }
     const r = await api('PUT', '/api/admin/settings', body);
     showMsg(document.getElementById('settingsMsg'), r.ok ? 'Zapisano ustawienia.' : r.data.error, r.ok ? 'ok' : 'error');
   });
 
+  const EVENT_LABELS = {
+    'lockout': ['Blokada konta', 'red'],
+    'ip-block': ['Blokada IP', 'red'],
+    'captcha': ['Zła CAPTCHA', 'gray'],
+    'recaptcha': ['Brak reCAPTCHA', 'gray'],
+    'honeypot': ['Pułapka na boty', 'red'],
+    'canary-account': ['Konto-pułapka', 'red'],
+    'canary-file': ['Plik-pułapka', 'red'],
+  };
+  async function loadEvents() {
+    const { data } = await api('GET', '/api/admin/security-events');
+    const tbody = document.getElementById('events');
+    tbody.replaceChildren();
+    if (!data.length) {
+      const tr = el('tr'); tr.append(el('td', 'Brak zdarzeń.', { colSpan: 5, className: 'empty' })); tbody.append(tr);
+    }
+    for (const ev of data) {
+      const [label, color] = EVENT_LABELS[ev.type] || [ev.type, ''];
+      const type = el('td'); type.append(el('span', label, { className: 'badge ' + color }));
+      const tr = el('tr');
+      tr.append(el('td', new Date(ev.created_at).toLocaleString('pl-PL')), type,
+        el('td', ev.login || '-'), el('td', ev.ip || '-'), el('td', ev.details));
+      tbody.append(tr);
+    }
+  }
+  document.getElementById('refreshEvents').onclick = loadEvents;
+  document.getElementById('clearLocks').onclick = async () => {
+    const r = await api('POST', '/api/admin/clear-locks');
+    showMsg(document.getElementById('eventsMsg'), r.ok ? 'Zdjęto blokady kont i adresów IP.' : r.data.error, r.ok ? 'ok' : 'error');
+    loadUsers();
+  };
+
   (async () => {
     await loadMe();
     roles = (await api('GET', '/api/admin/roles')).data;
     for (const r of roles) newRole.append(el('option', r, { value: r, selected: r === 'Czytelnik' }));
-    loadUsers(); loadSettings();
+    loadUsers(); loadSettings(); loadEvents();
   })();
 </script>
 </body>
